@@ -205,3 +205,13 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Cloq-specific
+artifacts/
+*.cloq
+demo_keys/
+enterprise_keys/
+test_keys/
+demo_*.txt
+demo_*.cloq
+temp_validation_file
