@@ -1,310 +1,183 @@
 #!/usr/bin/env python3
 """
-Cloq Control Plane - FastAPI Backend
+Cloq Control Plane - Simple MVP API
 
-This is the main FastAPI application that provides:
-- REST API endpoints for vendors and enterprises
-- Artifact storage and management
-- Cryptographic operations coordination
-- Metadata tracking and serving
+A minimal control plane that acts as a neutral pass-through host for encrypted bundles.
+No authentication, no database - just file storage with UUID-based artifact IDs.
+
+This demonstrates the core concept of Cloq as a neutral intermediary for encrypted
+software distribution between vendors and enterprises.
 """
 
-import sys
 import os
-import json
 import uuid
-from datetime import datetime
+import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Dict
 
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.responses import JSONResponse, FileResponse
-from pydantic import BaseModel
 
-# Add the project root to Python path for imports
-project_root = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(project_root))
-
-from src.cloq_cp.crypto_utils import ArtifactBundler, KeyManager
-
-
-# Pydantic models
-class ArtifactMetadata(BaseModel):
-    """Artifact metadata model"""
-    id: str
-    vendor_id: str
-    name: str
-    version: str
-    upload_date: str
-    encrypted_size: int
-    status: str
-    metadata: Dict[str, Any]
-
-
-class UploadResponse(BaseModel):
-    """Upload response model"""
-    artifact_id: str
-    status: str
-    message: str
-
-
-class DownloadRequest(BaseModel):
-    """Download request model"""
-    artifact_id: str
-    enterprise_id: str
-
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 # Initialize FastAPI app
 app = FastAPI(
-    title="Cloq Control Plane API",
-    description="Secure software packaging control plane",
+    title="Cloq Control Plane - MVP",
+    description="Simple pass-through host for encrypted software bundles",
     version="0.1.0"
 )
 
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# In-memory storage for MVP (replace with database later)
-artifacts_db: Dict[str, ArtifactMetadata] = {}
-artifact_files: Dict[str, str] = {}  # artifact_id -> file_path
+# Storage configuration
+STORAGE_DIR = Path("src/cloq_cp/storage")
+STORAGE_DIR.mkdir(exist_ok=True)
 
 
 @app.get("/")
 async def root():
-    """Root endpoint with API information"""
+    """Root endpoint with basic API information"""
     return {
-        "service": "Cloq Control Plane",
+        "service": "Cloq Control Plane - MVP",
         "version": "0.1.0",
-        "description": "Secure software packaging control plane",
+        "description": "Simple pass-through host for encrypted software bundles",
         "endpoints": {
-            "vendor": ["/vendor/upload", "/vendor/list"],
-            "enterprise": ["/enterprise/download/{id}", "/enterprise/decrypt"],
-            "metadata": ["/metadata/artifacts", "/metadata/artifacts/{id}"]
+            "upload": "POST /upload - Upload encrypted bundle",
+            "download": "GET /download/{artifact_id} - Download encrypted bundle"
         }
     }
 
 
-# Vendor endpoints
-@app.post("/vendor/upload", response_model=UploadResponse)
-async def vendor_upload(
-    file: UploadFile = File(...),
-    vendor_id: str = Form(...),
-    name: str = Form(...),
-    version: str = Form(...),
-    metadata: str = Form(default="{}")
-):
+@app.post("/upload")
+async def upload_artifact(file: UploadFile = File(...)) -> Dict[str, str]:
     """
-    Upload and encrypt a vendor bundle
+    Upload an encrypted software bundle
     
     Args:
-        file: Bundle file to upload
-        vendor_id: Vendor identifier
-        name: Bundle name
-        version: Bundle version
-        metadata: JSON metadata string
+        file: The encrypted bundle file to upload
         
     Returns:
-        Upload response with artifact ID
+        JSON response with artifact ID and success message
     """
     try:
-        # Generate artifact ID
+        # Generate unique artifact ID
         artifact_id = str(uuid.uuid4())
         
-        # Read file data
-        file_data = await file.read()
+        # Read file content
+        file_content = await file.read()
+        file_size = len(file_content)
         
-        # Parse metadata
-        try:
-            parsed_metadata = json.loads(metadata)
-        except json.JSONDecodeError:
-            parsed_metadata = {}
+        # Save file to storage
+        file_path = STORAGE_DIR / f"{artifact_id}.cloq"
+        with open(file_path, 'wb') as f:
+            f.write(file_content)
         
-        # Add additional metadata
-        parsed_metadata.update({
-            "original_filename": file.filename,
-            "original_size": len(file_data),
-            "upload_date": datetime.now().isoformat(),
-            "vendor_id": vendor_id
-        })
+        # Log the upload
+        logger.info(f"📤 UPLOAD: {file.filename} -> {artifact_id}")
+        logger.info(f"   Size: {file_size:,} bytes")
+        logger.info(f"   Saved to: {file_path}")
         
-        # TODO: Encrypt with enterprise public key
-        # For now, store the file data directly
-        print(f"📦 Processing upload: {file.filename} from vendor {vendor_id}")
-        
-        # Store artifact metadata
-        artifact_metadata = ArtifactMetadata(
-            id=artifact_id,
-            vendor_id=vendor_id,
-            name=name,
-            version=version,
-            upload_date=datetime.now().isoformat(),
-            encrypted_size=len(file_data),
-            status="uploaded",
-            metadata=parsed_metadata
-        )
-        
-        artifacts_db[artifact_id] = artifact_metadata
-        
-        # Store file (in production, this would be encrypted and stored securely)
-        artifacts_dir = Path("artifacts")
-        artifacts_dir.mkdir(exist_ok=True)
-        
-        file_path = artifacts_dir / f"{artifact_id}.cloq"
-        with open(file_path, "wb") as f:
-            f.write(file_data)
-        
-        artifact_files[artifact_id] = str(file_path)
-        
-        return UploadResponse(
-            artifact_id=artifact_id,
-            status="success",
-            message=f"Bundle uploaded successfully"
-        )
+        return {
+            "artifact_id": artifact_id,
+            "message": "Stored successfully",
+            "filename": file.filename,
+            "size_bytes": file_size
+        }
         
     except Exception as e:
+        logger.error(f"❌ Upload failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
 
-@app.get("/vendor/list")
-async def vendor_list(vendor_id: str):
+@app.get("/download/{artifact_id}")
+async def download_artifact(artifact_id: str):
     """
-    List uploaded bundles for a vendor
+    Download an encrypted software bundle
     
     Args:
-        vendor_id: Vendor identifier
+        artifact_id: The UUID of the artifact to download
         
     Returns:
-        List of vendor's artifacts
+        File download response
     """
-    vendor_artifacts = [
-        artifact for artifact in artifacts_db.values()
-        if artifact.vendor_id == vendor_id
-    ]
-    
-    return {
-        "vendor_id": vendor_id,
-        "artifacts": vendor_artifacts,
-        "count": len(vendor_artifacts)
-    }
-
-
-# Enterprise endpoints
-@app.get("/enterprise/download/{artifact_id}")
-async def enterprise_download(artifact_id: str):
-    """
-    Download encrypted artifact
-    
-    Args:
-        artifact_id: Artifact identifier
+    try:
+        # Construct file path
+        file_path = STORAGE_DIR / f"{artifact_id}.cloq"
         
-    Returns:
-        Encrypted artifact file
-    """
-    if artifact_id not in artifacts_db:
-        raise HTTPException(status_code=404, detail="Artifact not found")
-    
-    if artifact_id not in artifact_files:
-        raise HTTPException(status_code=404, detail="Artifact file not found")
-    
-    file_path = artifact_files[artifact_id]
-    
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="Artifact file not found on disk")
-    
-    return FileResponse(
-        path=file_path,
-        filename=f"{artifacts_db[artifact_id].name}.cloq",
-        media_type="application/octet-stream"
-    )
-
-
-@app.post("/enterprise/decrypt")
-async def enterprise_decrypt(
-    artifact_id: str = Form(...),
-    private_key: UploadFile = File(...)
-):
-    """
-    Decrypt artifact (placeholder - actual decryption happens client-side)
-    
-    Args:
-        artifact_id: Artifact identifier
-        private_key: Enterprise private key
+        # Check if file exists
+        if not file_path.exists():
+            logger.warning(f"❌ DOWNLOAD: Artifact {artifact_id} not found")
+            raise HTTPException(status_code=404, detail="Artifact not found")
         
-    Returns:
-        Decryption status
-    """
-    if artifact_id not in artifacts_db:
-        raise HTTPException(status_code=404, detail="Artifact not found")
-    
-    # In a real implementation, this would handle server-side decryption
-    # For MVP, decryption happens client-side with the enterprise CLI
-    
-    return {
-        "artifact_id": artifact_id,
-        "status": "decrypt_client_side",
-        "message": "Use enterprise CLI to decrypt artifact with your private key"
-    }
-
-
-# Metadata endpoints (for dashboard)
-@app.get("/metadata/artifacts")
-async def metadata_artifacts():
-    """
-    Get all artifacts metadata for dashboard
-    
-    Returns:
-        List of all artifacts with metadata
-    """
-    return {
-        "artifacts": list(artifacts_db.values()),
-        "count": len(artifacts_db),
-        "timestamp": datetime.now().isoformat()
-    }
-
-
-@app.get("/metadata/artifacts/{artifact_id}")
-async def metadata_artifact(artifact_id: str):
-    """
-    Get specific artifact metadata
-    
-    Args:
-        artifact_id: Artifact identifier
+        # Get file info
+        file_size = file_path.stat().st_size
         
-    Returns:
-        Artifact metadata
-    """
-    if artifact_id not in artifacts_db:
-        raise HTTPException(status_code=404, detail="Artifact not found")
-    
-    return artifacts_db[artifact_id]
+        # Log the download
+        logger.info(f"📥 DOWNLOAD: {artifact_id}")
+        logger.info(f"   Size: {file_size:,} bytes")
+        logger.info(f"   Path: {file_path}")
+        
+        # Return file as download
+        return FileResponse(
+            path=str(file_path),
+            filename=f"{artifact_id}.cloq",
+            media_type="application/octet-stream"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Download failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Download failed: {str(e)}")
 
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
+    """Simple health check endpoint"""
+    storage_files = list(STORAGE_DIR.glob("*.cloq"))
+    
     return {
         "status": "healthy",
-        "timestamp": datetime.now().isoformat(),
-        "artifacts_count": len(artifacts_db)
+        "storage_directory": str(STORAGE_DIR),
+        "artifacts_count": len(storage_files),
+        "storage_size_bytes": sum(f.stat().st_size for f in storage_files)
+    }
+
+
+@app.get("/list")
+async def list_artifacts():
+    """List all stored artifacts (for debugging)"""
+    artifacts = []
+    
+    for file_path in STORAGE_DIR.glob("*.cloq"):
+        artifact_id = file_path.stem  # Remove .cloq extension
+        file_size = file_path.stat().st_size
+        
+        artifacts.append({
+            "artifact_id": artifact_id,
+            "size_bytes": file_size,
+            "filename": f"{artifact_id}.cloq"
+        })
+    
+    return {
+        "artifacts": artifacts,
+        "count": len(artifacts),
+        "total_size_bytes": sum(a["size_bytes"] for a in artifacts)
     }
 
 
 if __name__ == "__main__":
     import uvicorn
     
-    print("🚀 Starting Cloq Control Plane...")
-    print("📡 API will be available at: http://localhost:8000")
-    print("📚 API docs available at: http://localhost:8000/docs")
+    print("🚀 Starting Cloq Control Plane - MVP")
+    print("=" * 50)
+    print(f"📁 Storage directory: {STORAGE_DIR}")
+    print(f"🌐 API will be available at: http://localhost:8000")
+    print(f"📚 API docs available at: http://localhost:8000/docs")
+    print("=" * 50)
     
     uvicorn.run(
-        "src.cloq_cp.main:app",
+        app,
         host="0.0.0.0",
         port=8000,
         reload=True
