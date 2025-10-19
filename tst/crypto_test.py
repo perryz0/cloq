@@ -54,7 +54,7 @@ class SoftwarePackage:
         
         # Create main functionality script
         self.main_script = os.path.join(self.package_dir, "calculator.py")
-        with open(self.main_script, 'w') as f:
+        with open(self.main_script, 'w', encoding='utf-8') as f:
             f.write('''#!/usr/bin/env python3
 """
 Advanced Calculator - Vendor Software Package
@@ -167,7 +167,7 @@ if __name__ == "__main__":
         
         # Create configuration file
         self.config_file = os.path.join(self.package_dir, "config.json")
-        with open(self.config_file, 'w') as f:
+        with open(self.config_file, 'w', encoding='utf-8') as f:
             json.dump({
                 "precision": 8,
                 "log_operations": True,
@@ -178,7 +178,7 @@ if __name__ == "__main__":
         
         # Create data file
         self.data_file = os.path.join(self.package_dir, "data.txt")
-        with open(self.data_file, 'w') as f:
+        with open(self.data_file, 'w', encoding='utf-8') as f:
             f.write('''Sample data file for the calculator package.
 This could contain lookup tables, reference data, or other resources
 that the software package needs to function properly.
@@ -194,7 +194,7 @@ Test values: [1, 2, 3, 5, 8, 13, 21, 34, 55, 89]
         
         # Create package info file
         package_info = os.path.join(self.package_dir, "package_info.json")
-        with open(package_info, 'w') as f:
+        with open(package_info, 'w', encoding='utf-8') as f:
             json.dump({
                 "name": self.package_name,
                 "version": "1.0.0",
