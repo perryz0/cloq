@@ -30,7 +30,7 @@ def test_control_plane_api():
     print("=" * 50)
     
     # Control plane base URL
-    base_url = "http://localhost:8000"
+    base_url = "http://localhost:9000"
     
     try:
         # 1. Check if control plane is running
@@ -146,7 +146,7 @@ def test_encrypted_workflow():
     print("\n🔐 Encrypted Workflow Test")
     print("=" * 50)
     
-    base_url = "http://localhost:8000"
+    base_url = "http://localhost:9000"
     
     try:
         # 1. Generate encryption keys

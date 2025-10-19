@@ -11,10 +11,10 @@ Cloq provides a secure intermediary system with three main components:
 - **Key Management**: Generate enterprise keypairs for testing
 - **Bundle Processing**: Package software into encrypted artifacts
 
-### 🎛️ **Control Plane** (`src/cloq-cp/`)
-- **FastAPI Backend**: REST API for vendors and enterprises
+### 🎛️ **Control Plane** (`src/cloq_cp/`)
+- **FastAPI Backend**: Simple REST API for file upload/download
 - **Crypto Utils**: RSA + AES encryption/decryption primitives
-- **Storage**: Local artifact storage with metadata tracking
+- **Storage**: Local file storage with UUID-based artifact IDs
 - **Zero-Knowledge**: Cannot decrypt artifacts, only manages them
 
 ### 🏢 **Enterprise Layer** (`src/enterprise/`)
@@ -52,14 +52,25 @@ API available at: http://localhost:8000
 python -m src.vendor.vendor_cli generate-keys
 ```
 
-### 4. Vendor: Encrypt and Upload
+### 4. Test the Crypto Workflow
 ```bash
-python -m src.vendor.vendor_cli upload my_software.tar.gz --public-key enterprise_keys/enterprise_public.pem
+# Test standalone encryption/decryption
+python tst/crypto_test.py
+
+# Test control plane API (requires running server)
+python tst/control_plane_test.py
 ```
 
-### 5. Enterprise: Download and Decrypt
+### 5. Generate Keys and Test Encryption
 ```bash
-python -m src.enterprise.enterprise_cli download <artifact-id> --private-key enterprise_keys/enterprise_private.pem
+# Generate enterprise keys
+python -m src.vendor.vendor_cli generate-keys
+
+# Encrypt a file using crypto_utils
+python -c "
+from src.cloq_cp.crypto_utils import encrypt_file
+encrypt_file('test_file.txt', 'enterprise_keys/enterprise_public.pem', 'encrypted.clq')
+"
 ```
 
 ## 📁 Project Structure
@@ -68,28 +79,61 @@ python -m src.enterprise.enterprise_cli download <artifact-id> --private-key ent
 cloq/
 ├── src/
 │   ├── vendor/           # Vendor tools and CLI
-│   ├── cloq-cp/         # Control plane backend
-│   │   ├── storage/     # Storage abstraction
-│   │   ├── main.py      # FastAPI application
+│   ├── cloq_cp/         # Control plane backend
+│   │   ├── storage/     # Artifact storage directory
+│   │   ├── main.py      # Simple FastAPI application
 │   │   └── crypto_utils.py  # Cryptographic primitives
 │   └── enterprise/      # Enterprise tools and CLI
+├── tst/                 # Test suite
+│   ├── crypto_test.py   # Standalone crypto workflow test
+│   └── control_plane_test.py  # Control plane API test
 ├── requirements.txt     # Python dependencies
 └── README.md           # This file
 ```
 
-## 🔧 API Endpoints
+## 🔧 API Endpoints (Simple MVP)
 
-### Vendor API
-- `POST /vendor/upload` - Upload encrypted bundle
-- `GET /vendor/list` - List vendor artifacts
+### Core Endpoints
+- `POST /upload` - Upload encrypted bundle (multipart/form-data)
+- `GET /download/{artifact_id}` - Download encrypted bundle by UUID
+- `GET /health` - Health check with storage statistics
+- `GET /list` - List all stored artifacts (for debugging)
 
-### Enterprise API  
-- `GET /enterprise/download/{id}` - Download encrypted artifact
-- `POST /enterprise/decrypt` - Decrypt artifact
+### Example Usage
+```bash
+# Upload a file
+curl -X POST -F "file=@encrypted_bundle.clq" http://localhost:8000/upload
 
-### Metadata API
-- `GET /metadata/artifacts` - List all artifacts
-- `GET /metadata/artifacts/{id}` - Get artifact details
+# Download a file
+curl http://localhost:8000/download/{artifact_id} -o downloaded.clq
+
+# Check health
+curl http://localhost:8000/health
+```
+
+## 🧪 Testing
+
+The project includes comprehensive tests to demonstrate the complete workflow:
+
+### Standalone Crypto Test
+```bash
+python tst/crypto_test.py
+```
+- Creates a complete software package (Advanced Calculator)
+- Encrypts the entire package using hybrid encryption
+- Decrypts and runs the software to verify functionality preservation
+
+### Control Plane API Test
+```bash
+# Start control plane first
+python -m src.cloq_cp.main
+
+# Run API tests (in another terminal)
+python tst/control_plane_test.py
+```
+- Tests file upload/download through the control plane
+- Demonstrates complete encrypted workflow
+- Verifies the control plane acts as neutral intermediary
 
 ## 🎯 Use Cases
 

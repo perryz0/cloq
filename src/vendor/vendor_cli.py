@@ -18,7 +18,7 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.cloq_cp.crypto_utils import encrypt_file_for_enterprise, generate_enterprise_keypair
+from src.cloq_cp.crypto_utils import encrypt_file, generate_rsa_keypair, save_keypair
 
 
 class VendorCLI:
@@ -43,11 +43,8 @@ class VendorCLI:
         print(f"🔒 Encrypting file: {file_path}")
         
         # Encrypt file for enterprise
-        artifact_path = encrypt_file_for_enterprise(
-            file_path, 
-            enterprise_public_key,
-            metadata=metadata
-        )
+        artifact_path = f"{file_path}.cloq"
+        encrypt_file(file_path, enterprise_public_key, artifact_path)
         
         print(f"✅ Artifact created: {artifact_path}")
         
@@ -67,15 +64,12 @@ class VendorCLI:
         print(f"🔑 Generating enterprise keypair in {output_dir}")
         
         os.makedirs(output_dir, exist_ok=True)
-        private_key, public_key = generate_enterprise_keypair()
+        private_key, public_key = generate_rsa_keypair()
         
         private_path = os.path.join(output_dir, "enterprise_private.pem")
         public_path = os.path.join(output_dir, "enterprise_public.pem")
         
-        with open(private_path, 'wb') as f:
-            f.write(private_key)
-        with open(public_path, 'wb') as f:
-            f.write(public_key)
+        save_keypair(private_key, public_key, private_path, public_path)
         
         print(f"✅ Keys saved to {private_path} and {public_path}")
 

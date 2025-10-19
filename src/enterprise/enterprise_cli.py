@@ -18,7 +18,7 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.cloq_cp.crypto_utils import decrypt_artifact_for_enterprise
+from src.cloq_cp.crypto_utils import decrypt_file
 
 
 class EnterpriseCLI:
@@ -56,11 +56,8 @@ class EnterpriseCLI:
         print(f"🔓 Decrypting artifact: {artifact_path}")
         
         # Decrypt artifact
-        decrypted_path = decrypt_artifact_for_enterprise(
-            artifact_path,
-            private_key_path,
-            output_path
-        )
+        decrypted_path = output_path or "decrypted_file"
+        decrypt_file(artifact_path, private_key_path, decrypted_path)
         
         print(f"✅ File decrypted: {decrypted_path}")
         return decrypted_path
@@ -85,11 +82,8 @@ class EnterpriseCLI:
         
         try:
             # Try to decrypt and validate
-            temp_path = decrypt_artifact_for_enterprise(
-                artifact_path,
-                private_key_path,
-                "temp_validation_file"
-            )
+            temp_path = "temp_validation_file"
+            decrypt_file(artifact_path, private_key_path, temp_path)
             
             # Check if decryption was successful
             is_valid = os.path.exists(temp_path)

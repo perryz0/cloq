@@ -81,7 +81,7 @@ async def upload_artifact(file: UploadFile = File(...)) -> Dict[str, str]:
             "artifact_id": artifact_id,
             "message": "Stored successfully",
             "filename": file.filename,
-            "size_bytes": file_size
+            "size_bytes": str(file_size)
         }
         
     except Exception as e:
@@ -172,13 +172,13 @@ if __name__ == "__main__":
     print("🚀 Starting Cloq Control Plane - MVP")
     print("=" * 50)
     print(f"📁 Storage directory: {STORAGE_DIR}")
-    print(f"🌐 API will be available at: http://localhost:8000")
-    print(f"📚 API docs available at: http://localhost:8000/docs")
+    print(f"🌐 API will be available at: http://localhost:9000")
+    print(f"📚 API docs available at: http://localhost:9000/docs")
     print("=" * 50)
     
     uvicorn.run(
-        app,
+        "src.cloq_cp.main:app",
         host="0.0.0.0",
-        port=8000,
+        port=9000,
         reload=True
     )
